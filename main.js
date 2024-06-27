@@ -5,9 +5,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const scoreElement = document.getElementById('score');
     const successElement = document.getElementById('success');
     const errorsElement = document.getElementById('errors');
+    const timeElement = document.getElementById('time');
+    const startButton = document.getElementById('start');
+    const restartButton = document.getElementById('restart');
 
     let selectedLeft = null;
     let data = {};
+    let timerInterval;
+    let timeRemaining = 60;
 
     // Fetch data from JSON file
     fetch('data.json')
@@ -19,11 +24,57 @@ document.addEventListener("DOMContentLoaded", () => {
         })
         .then(jsonData => {
             data = jsonData;
-            fillContainers();
+            resetGame();
         })
         .catch(error => console.error('Error loading JSON:', error));
 
-    // Shuffle and fill the containers
+    function startGame() {
+        resetScore();
+        resetTimer();
+        fillContainers();
+        startTimer();
+        leftColumn.addEventListener('click', handleLeftClick);
+        rightColumn.addEventListener('click', handleRightClick);
+    }
+
+    function resetGame() {
+        resetScore();
+        resetTimer();
+        fillContainers();
+        leftColumn.removeEventListener('click', handleLeftClick);
+        rightColumn.removeEventListener('click', handleRightClick);
+    }
+
+    function resetScore() {
+        scoreElement.textContent = 0;
+        successElement.textContent = 0;
+        errorsElement.textContent = 0;
+    }
+
+    function resetTimer() {
+        timeRemaining = 60;
+        timeElement.textContent = timeRemaining;
+        if (timerInterval) {
+            clearInterval(timerInterval);
+        }
+    }
+
+    function startTimer() {
+        timerInterval = setInterval(() => {
+            timeRemaining -= 1;
+            timeElement.textContent = timeRemaining;
+            if (timeRemaining <= 0) {
+                clearInterval(timerInterval);
+                endGame();
+            }
+        }, 1000);
+    }
+
+    function endGame() {
+        alert(`Game over! Your score is ${successElement.textContent}`);
+        resetGame();
+    }
+
     function shuffle(array) {
         for (let i = array.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
@@ -36,14 +87,10 @@ document.addEventListener("DOMContentLoaded", () => {
         const shuffledSignals = shuffle([...data.signals]);
         const shuffledResponses = shuffle([...data.responses]);
 
-        // Select 10 unique elements from shuffled signals and responses
         const signalsSubset = shuffledSignals.slice(0, 10);
         const responsesSubset = shuffledResponses.slice(0, 10);
 
-        // Choose a common element to be in both signals and responses
         const commonElement = signalsSubset[Math.floor(Math.random() * signalsSubset.length)];
-
-        // Replace a random element in responses with the common element
         const responseIndex = Math.floor(Math.random() * 10);
         responsesSubset[responseIndex] = commonElement;
 
@@ -56,22 +103,41 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
+    function handleLeftClick(event) {
+        handleClick(event, 'left');
+    }
+
+    function handleRightClick(event) {
+        handleClick(event, 'right');
+    }
+
     function handleClick(event, column) {
+        if (timeRemaining <= 0) return; // Ignore clicks if time is up
+
         const target = event.target;
 
         if (column === 'left') {
-            selectedLeft = target;
-            highlightSelected(target, column);
-        } else if (column === 'right' && selectedLeft) {
-            if (compareElements(selectedLeft, target)) {
-                updateScore('success');
-                fillContainers(); // Refill containers with new elements
+            if (selectedLeft === target) {
+                selectedLeft = null;
+                removeHighlight();
             } else {
-                updateScore('errors');
-                fillContainers(); // Refill containers with new elements
+                selectedLeft = target;
+                highlightSelected(target, column);
             }
-            selectedLeft = null; // reset selection
-            removeHighlight();
+        } else if (column === 'right' && selectedLeft) {
+            if (selectedLeft === target) {
+                selectedLeft = null;
+                removeHighlight();
+            } else {
+                if (compareElements(selectedLeft, target)) {
+                    updateScore('success');
+                } else {
+                    updateScore('errors');
+                }
+                fillContainers();
+                selectedLeft = null;
+                removeHighlight();
+            }
         }
     }
 
@@ -92,16 +158,15 @@ document.addEventListener("DOMContentLoaded", () => {
     function updateScore(type) {
         const score = parseInt(scoreElement.textContent);
         const success = parseInt(successElement.textContent);
-        const errors = parseInt(errorsElement.textContent);
 
         if (type === 'success') {
             successElement.textContent = success + 1;
+            scoreElement.textContent = score + 1;
         } else if (type === 'errors') {
-            errorsElement.textContent = errors + 1;
+            errorsElement.textContent = parseInt(errorsElement.textContent) + 1;
         }
-        scoreElement.textContent = score + 1;
     }
 
-    leftColumn.addEventListener('click', (event) => handleClick(event, 'left'));
-    rightColumn.addEventListener('click', (event) => handleClick(event, 'right'));
+    startButton.addEventListener('click', startGame);
+    restartButton.addEventListener('click', startGame);
 });
