@@ -1,4 +1,3 @@
-// game.js
 document.addEventListener("DOMContentLoaded", () => {
     const leftColumn = document.querySelector('.left-column');
     const rightColumn = document.querySelector('.right-column');
@@ -13,20 +12,50 @@ document.addEventListener("DOMContentLoaded", () => {
     let data = {};
     let timerInterval;
     let timeRemaining = 60;
+    let roundNumber = 0;
 
     // Fetch data from JSON file
-    fetch('data.json')
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            return response.json();
-        })
+    fetch('/data.json')
+        .then(response => response.json())
         .then(jsonData => {
             data = jsonData;
-            resetGame();
+            fetchScore();
         })
         .catch(error => console.error('Error loading JSON:', error));
+
+    function fetchScore() {
+        fetch('/score.json')
+            .then(response => response.json())
+            .then(scores => {
+                const totalScore = scores.reduce((total, score) => total + score.success, 0);
+                scoreElement.textContent = totalScore;
+                roundNumber = scores.length; // Set the round number based on the existing records
+            })
+            .catch(error => console.error('Error fetching score:', error));
+    }
+
+    function saveScore(success, errors) {
+        roundNumber += 1;
+        const totalScore = parseInt(scoreElement.textContent) + success;
+        const newScore = { round: roundNumber, success, errors, score: totalScore, timestamp: new Date().toISOString() };
+
+        fetch('/score.json')
+            .then(response => response.json())
+            .then(scores => {
+                scores.push(newScore);
+                return fetch('/score.json', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(scores, null, 2)
+                });
+            })
+            .then(response => response.text())
+            .then(result => {
+                console.log(result);
+                scoreElement.textContent = totalScore;
+            })
+            .catch(error => console.error('Error saving score:', error));
+    }
 
     function startGame() {
         resetScore();
@@ -46,7 +75,6 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function resetScore() {
-        scoreElement.textContent = 0;
         successElement.textContent = 0;
         errorsElement.textContent = 0;
     }
@@ -71,7 +99,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function endGame() {
-        alert(`Game over! Your score is ${successElement.textContent}`);
+        const success = parseInt(successElement.textContent);
+        const errors = parseInt(errorsElement.textContent);
+        alert(`Game over! Your score is ${success}`);
+        saveScore(success, errors);
         resetGame();
     }
 
